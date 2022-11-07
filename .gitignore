@@ -1,0 +1,9 @@
+*.zip
+*__pycache__*
+*dataset*
+*predictions*
+*.pth
+*.h5
+*.pkl
+*.npy
+*.pyc

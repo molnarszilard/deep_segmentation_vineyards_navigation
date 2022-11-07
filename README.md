@@ -1,3 +1,7 @@
+This is based on https://github.com/MrD1360/deep_segmentation_vineyards_navigation
+THe notebook is split into py fiels, which are more convenient for our usecase.
+Also some modifications were done, to use it with tensorflow 2.10.0.
+
 
 # Semantic Segmentation Controller for Vineyards
 A control system that exploits semantic segmentation properties to properly drive the mobile platform along vineyard rows.
