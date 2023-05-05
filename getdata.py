@@ -3,13 +3,45 @@ import cv2
 import glob
 import tqdm
 import numpy as np
-
-def loadData(imgList, maskList):
+img_folder = "images_smaller"
+mask_folder = "masks_smaller"
+def loadData(imgList, maskList,cs):
     X = []
     y = []
     for i in imgList:
-            img_name = os.path.split(i)[1].split('.jpg')[0]#.split('_')[1]           
-            img = cv2.imread(i)
+            img_name = os.path.split(i)[1].split('.jpg')[0]#.split('_')[1] 
+            path = i 
+            img = cv2.imread(path)
+            if cs=="rgb":
+                ...
+            elif cs=="lab":
+                # path = i.replace(img_folder, 'images_lab')
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+            elif cs=="luv":
+                # path = i.replace(img_folder, 'images_luv')
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2LUV)
+            elif cs=="hls":
+                # path = i.replace(img_folder, 'images_hls')
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
+            elif cs=="hsv":
+                # path = i.replace(img_folder, 'images_hsv')
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            elif cs=="ycrcb":
+                # path = i.replace(img_folder, 'images_ycrcb')
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
+            else:
+                print("Unknown color space.")         
+            # img = cv2.imread(path)
+            # if cs=="lab":        
+            #     img = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+            # elif cs=="luv":
+            #     img = cv2.cvtColor(img, cv2.COLOR_BGR2LUV)
+            # elif cs=="hls":
+            #     img = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
+            # elif cs=="hsv":
+            #     img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+            # elif cs=="ycrcb":
+            #     img = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
             X.append(img)
     for i in maskList:
             mask_name = os.path.split(i)[1].split('.jpg')[0]#.split('_')[1]
@@ -66,20 +98,20 @@ def resizeImage_y(y, width, force_dim=False, height = None):
 def normalize(X):
     return (X / 255)
 
-def get_data(PATH_DIR = 'dataset/aghi_mod/',in_net_h=480,in_net_w=640):
-    training_img_dir = os.path.join(PATH_DIR, 'images/train')
-    training_mask_dir = os.path.join(PATH_DIR, 'masks/train')
-    test_img_dir = os.path.join(PATH_DIR, 'images/test')
-    test_mask_dir = os.path.join(PATH_DIR, 'masks/test')
+def get_data(PATH_DIR = 'dataset/aghi_mod/',in_net_h=480,in_net_w=640,cs="rgb"):
+    training_img_dir = os.path.join(PATH_DIR, img_folder,'train')
+    training_mask_dir = os.path.join(PATH_DIR,mask_folder, 'train')
+    test_img_dir = os.path.join(PATH_DIR, img_folder,'test')
+    test_mask_dir = os.path.join(PATH_DIR,mask_folder, 'test')
     train_img_list = glob.glob(os.path.join(training_img_dir, '*.jpg'))
     train_mask_list = glob.glob(os.path.join(training_mask_dir, '*.jpg'))
     test_img_list = glob.glob(os.path.join(test_img_dir, '*.jpg'))
     test_mask_list = glob.glob(os.path.join(test_mask_dir, '*.jpg'))
 
     #X,y are for training and validation
-    X, y = loadData(train_img_list, train_mask_list)
+    X, y = loadData(train_img_list, train_mask_list,cs)
     #X_test,y_test are for testing
-    X_test, y_test = loadData(test_img_list, test_mask_list)
+    X_test, y_test = loadData(test_img_list, test_mask_list,cs)
     #mask and image must be shuffled with the same index
     X,y=custom_shuffle(X,y)
     X_test,y_test=custom_shuffle(X_test,y_test)

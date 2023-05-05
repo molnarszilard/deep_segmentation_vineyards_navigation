@@ -56,7 +56,7 @@ def buildModel(base_model, dropout_rate= 0.2, n_class=1,activation_number=41):
     m2 = UpSampling2D(size=(8, 8),data_format='channels_last',interpolation="bilinear")(m2)
     # predictions 
     layer_name_act="activation_head"+str(activation_number)
-    predictions = Activation('sigmoid',name=layer_name_act)(m2)
+    predictions = Activation('sigmoid',name=layer_name_act)(m2)#(m2[:,0:255,0:255,:])
     activation_number+=1 
     # final model
     model = Model(inputs=base_model.input, outputs=predictions)

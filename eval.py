@@ -49,9 +49,10 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description='canopy segmentation on individual images')
     parser.add_argument('--cuda', dest='cuda', default=True, action='store_true', help='whether use CUDA')
-    parser.add_argument('--input_folder', dest='input_folder', default='./dataset/input_images/aghi/', type=str, help='path to a single input image for evaluation')
+    parser.add_argument('--input', dest='input', default='./dataset/input_images/aghi/', type=str, help='path to a single input image for evaluation')
     parser.add_argument('--pred_folder', dest='pred_folder', default='./dataset/predicted_images/', type=str, help='where to save the predicted images.')
     parser.add_argument('--model_path', dest='model_path', default='./bin/mobileNetv3_segmentation_new1.h5', type=str, help='path to the model to use')
+    parser.add_argument('--cs', dest='cs', default='rgb', type=str, help='color space: rgb, lab, luv, hls, hsv, ycrcb')
 
     args = parser.parse_args()
     return args
@@ -60,8 +61,8 @@ if __name__ == '__main__':
     #select the working GPU
     gpus = tf.config.experimental.list_physical_devices('GPU')
     print("Num GPUs Available: ", len(gpus))
-    tf.config.experimental.set_visible_devices(gpus[2], 'GPU')
-    tf.config.experimental.set_memory_growth(gpus[2], True)
+    tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
+    tf.config.experimental.set_memory_growth(gpus[0], True)
     args = parse_args()
     isExist = os.path.exists(args.pred_folder)
     if not isExist:
@@ -77,11 +78,20 @@ if __name__ == '__main__':
     print('evaluating...')
     in_net_h=480#224
     in_net_w=640#224
-    if args.input_folder.endswith('.png') or args.input_folder.endswith('.jpg'):
+    if args.input.endswith('.png') or args.input.endswith('.jpg'):
 
-        x_test_new = cv2.imread(args.input_folder) 
+        x_test_new = cv2.imread(args.input) 
         # x_test_new = X[0]
-        x_test_new = cv2.cvtColor(x_test_new, cv2.COLOR_BGR2RGB)
+        if args.cs=="lab":        
+            x_test_new = cv2.cvtColor(x_test_new, cv2.COLOR_BGR2LAB)
+        elif args.cs=="luv":
+            x_test_new = cv2.cvtColor(x_test_new, cv2.COLOR_BGR2LUV)
+        elif args.cs=="hls":
+            x_test_new = cv2.cvtColor(x_test_new, cv2.COLOR_BGR2HLS)
+        elif args.cs=="hsv":
+            x_test_new = cv2.cvtColor(x_test_new, cv2.COLOR_BGR2HSV)
+        elif args.cs=="ycrcb":
+            x_test_new = cv2.cvtColor(x_test_new, cv2.COLOR_BGR2YCrCb)
         x_test_new = cv2.resize(x_test_new.astype('uint8')
                                 , (in_net_h,in_net_w), interpolation = cv2.INTER_AREA)
         x_test_new = normalize(x_test_new)
@@ -89,22 +99,35 @@ if __name__ == '__main__':
         y_pred = model.predict(x_test_new[None,...])
         stop = timeit.default_timer()
         y_pred = (y_pred > 0.5)
-        dirname, basename = os.path.split(args.input_folder)
+        dirname, basename = os.path.split(args.input)
         save_path=args.pred_folder+basename[:-4]
         outimage = np.moveaxis(y_pred,0,-1)*255
         cv2.imwrite(save_path +"_pred_own"+'.jpg', outimage)
         print('Predicting the image took %f seconds'% (stop-start))
     else:
-        dlist=os.listdir(args.input_folder)
+        dlist=os.listdir(args.input)
         dlist.sort()
         time_sum = 0
         counter = 0
         for filename in dlist:
             if filename.endswith(".png") or filename.endswith(".jpg"):
-                path=args.input_folder+filename
+                path=args.input+filename
                 print("Predicting for:"+filename)
                 img = cv2.imread(path)
-                x_test_new = cv2.cvtColor(np.copy(img), cv2.COLOR_BGR2RGB)
+                if args.cs=="rgb":
+                    x_test_new = img
+                elif args.cs=="lab":        
+                    x_test_new = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+                elif args.cs=="luv":
+                    x_test_new = cv2.cvtColor(img, cv2.COLOR_BGR2LUV)
+                elif args.cs=="hls":
+                    x_test_new = cv2.cvtColor(img, cv2.COLOR_BGR2HLS)
+                elif args.cs=="hsv":
+                    x_test_new = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+                elif args.cs=="ycrcb":
+                    x_test_new = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
+                else:
+                    print("Unknown color space.")
                 x_test_new = normalize(x_test_new)
                 if counter==0:
                     start = timeit.default_timer()
@@ -120,7 +143,7 @@ if __name__ == '__main__':
                 else:
                     time_sum+=stop-start
                     wsetuptime+=stop-start
-                threshold = np.mean(y_pred)
+                threshold = (y_pred.max()-y_pred.min())/2
                 y_pred[y_pred>=threshold]=255
                 y_pred[y_pred<threshold]=0
                 y_pred=y_pred.astype(np.uint8)
@@ -129,9 +152,9 @@ if __name__ == '__main__':
                 y_pred3_bool = (y_pred3>125)
                 img = np.where(y_pred3_bool, img, img/3).astype(np.uint8)                
                 counter=counter+1
-                save_path=args.pred_folder+filename[:-4]
-                cv2.imwrite(save_path +"_pred_deepseg_mask"+'.jpg', y_pred3)
-                cv2.imwrite(save_path +"_pred_deepseg"+'.jpg', img)
+                save_path=args.pred_folder+filename
+                cv2.imwrite(save_path, y_pred3)
+                # cv2.imwrite(save_path +"_pred_deepseg"+'.jpg', img)
             else:
                 continue
         print('Predicting %d images took %f seconds, with the average of %f (including setup time: total: %fs, avg: %fs)' % (counter,time_sum,time_sum/counter,wsetuptime,wsetuptime/counter))  

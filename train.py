@@ -10,6 +10,19 @@ from datetime import datetime
 from tensorflow.keras.callbacks import ModelCheckpoint
 from tensorflow.keras.optimizers import SGD,RMSprop,Adam
 import sys
+import argparse
+
+def parse_args():
+    """
+    Parse input arguments
+    """
+    parser = argparse.ArgumentParser(description='canopy segmentation on individual images')
+    parser.add_argument('--cuda', dest='cuda', default=True, type=bool, help='whether use CUDA')
+    parser.add_argument('--dir', dest='dir', default='/mnt/ssd1/datasets/vineyards/vineye_leaves/leaves_dataset/lab/', type=str, help='path to a single input image for evaluation')
+    parser.add_argument('--cs', dest='cs', default='rgb', type=str, help='color space: rgb, lab, luv, hls, hsv, ycrcb')
+    parser.add_argument('--session', dest='session', default=41, type=int, help='session')
+    args = parser.parse_args()
+    return args
 
 def progress(count, total, suffix=''):
     bar_len = 60
@@ -40,14 +53,15 @@ def class_IoU(y_true, y_pred):
     union=tf.reduce_sum(tf.math.subtract(tf.math.add(y_true,y_pred_threshold),intersection_tensor))
     return tf.math.divide(inter,union)
 
+args = parse_args()
 #select the working GPU
 gpus = tf.config.experimental.list_physical_devices('GPU')
 print("Num GPUs Available: ", len(gpus))
-tf.config.experimental.set_visible_devices(gpus[2], 'GPU')
-tf.config.experimental.set_memory_growth(gpus[2], True)
+tf.config.experimental.set_visible_devices(gpus[0], 'GPU')
+tf.config.experimental.set_memory_growth(gpus[0], True)
 
 ### DATASET
-PATH_DIR = 'dataset/aghi_mod/'
+PATH_DIR = args.dir
 in_net_h=480
 in_net_w=640
 #or
@@ -55,7 +69,14 @@ in_net_w=640
 # in_net_w=224
 net_channels=3
 n_epochs = 100
-X,y,X_test,y_test = get_data(PATH_DIR,in_net_h,in_net_w)
+batch_size=4
+X,y,X_test,y_test = get_data(PATH_DIR,in_net_h,in_net_w,args.cs)
+# train_data = tf.data.Dataset.from_tensor_slices((X, y))
+# test_data = tf.data.Dataset.from_tensor_slices((X_test, y_test))
+train_size = len(X)
+test_size = len(X_test)
+# train_data = train_data.shuffle(train_size).batch(batch_size)
+# test_data = test_data.shuffle(test_size).batch(batch_size/4)
 
 #Save checkpoints
 model_dir = './bin/'
@@ -65,12 +86,14 @@ name = 'MobileNet_V3'
 now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
 root_logdir = "logs"
 logdir = "{}/run-{}_{}/".format(root_logdir, now,name)
-backup_model_path = os.path.join(model_dir, '{}.h5'.format(name))
-backup_weights_path = os.path.join(model_dir, '{}_weights.h5'.format(name))
+backup_model_path = os.path.join(model_dir, '{}_{}.h5'.format(name,args.session))
+backup_weights_path = os.path.join(model_dir, '{}_{}_weights.h5'.format(name,args.session))
 checkpointer = ModelCheckpoint(filepath=backup_weights_path, 
                                monitor = 'loss',
                                verbose=1, 
-                               save_best_only=True)
+                               save_freq=int(n_epochs/10)
+                            #    save_best_only=True
+                               )
 model = create_model(in_net_w,in_net_h)
 #Define the optimizers
 optimizer_r = RMSprop(learning_rate=0.001, rho=0.9, epsilon=1e-08, decay=0.0)
@@ -82,14 +105,17 @@ model.compile(optimizer=optimizer_s, loss=loss_IoU, metrics = [class_IoU])
 early_stopping_ = tf.keras.callbacks.EarlyStopping(patience=n_epochs)
 # Train the model on the new data for a few epochs
 history_F = model.fit(x = X, y = y,
-                    batch_size = 4,
+                    batch_size = batch_size,
                     epochs = n_epochs,
                     validation_split = 0, 
                     shuffle = True,
-                    # callbacks = [early_stopping_]
+                    callbacks = [checkpointer],
                     validation_data=(X_test,y_test)
                     #validation_data=(X,y)
-                     )  
+                     )
+# model.train(train_data, test_data,
+#                 epochs=n_epochs,
+#                 layers='all')
 
 model.evaluate(X_test,y_test)
 
